@@ -1,0 +1,58 @@
+networks:
+  did-net:
+
+services:
+
+  # ===============================
+  # Hyperledger Fabric DID Gateway
+  # ===============================
+  fabric-gateway:
+    image: node:18
+    container_name: fabric-gateway
+    working_dir: /app
+    volumes:
+      - ./fabric-api:/app
+    command: ["node", "server.js"]
+    ports:
+      - "4000:4000"
+    networks:
+      - did-net
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:4000/health', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ===============================
+  # ROS2 Publisher (Verified Device)
+  # ===============================
+  ros-publisher:
+    build: .
+    container_name: ros-publisher
+    environment:
+      - ROLE=publisher
+    depends_on:
+      fabric-gateway:
+        condition: service_healthy
+    networks:
+      - did-net
+
+  # ===============================
+  # ROS2 Subscriber (Verified Device)
+  # ===============================
+  ros-subscriber:
+    build: .
+    container_name: ros-subscriber
+    environment:
+      - ROLE=subscriber
+    depends_on:
+      fabric-gateway:
+        condition: service_healthy
+    networks:
+      - did-net
